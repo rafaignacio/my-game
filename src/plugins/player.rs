@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 
-#[derive(Default, Reflect)]
+#[derive(Default)]
+#[cfg_attr(feature = "debug", derive(Reflect))]
 pub enum FacingDirection {
     Up,
     #[default]
@@ -28,7 +29,8 @@ pub struct PlayerPlugin;
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, spawn_player)
-            .add_systems(Update, move_player);
+            .add_systems(Update, move_player)
+            .add_systems(Update, update_player_sprite);
         #[cfg(feature = "debug")]
         app.register_type::<Player>();
     }
@@ -56,5 +58,22 @@ fn move_player(mut player_query: Query<&mut Player>, input: Res<Input<KeyCode>>)
 
     if input.any_just_pressed([KeyCode::Up, KeyCode::W]) {
         player.change_direction(FacingDirection::Up);
+    }
+}
+
+fn update_player_sprite(
+    mut player_query: Query<(&mut Handle<Image>, &Player), With<Player>>,
+    asset_server: Res<AssetServer>,
+) {
+    let (mut texture, player) = player_query.single_mut();
+    match player.facing_direction {
+        FacingDirection::Down => {
+            *texture = asset_server.load("sprites/character_maleAdventurer_idle.png");
+        }
+        FacingDirection::Up => {
+            *texture = asset_server.load("sprites/character_maleAdventurer_back.png");
+        }
+        FacingDirection::Left => todo!(),
+        FacingDirection::Right => todo!(),
     }
 }
