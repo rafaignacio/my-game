@@ -7,8 +7,7 @@ const PLAYER_KEYS_UP: [KeyCode; 2] = [KeyCode::Up, KeyCode::W];
 const PLAYER_KEYS_RIGHT: [KeyCode; 2] = [KeyCode::Right, KeyCode::D];
 const PLAYER_KEYS_LEFT: [KeyCode; 2] = [KeyCode::Left, KeyCode::A];
 
-#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
-#[cfg_attr(feature = "debug", derive(Reflect))]
+#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Reflect)]
 pub enum FacingDirection {
     North,
     #[default]
@@ -16,7 +15,8 @@ pub enum FacingDirection {
     East,
     West,
 }
-#[derive(Default, Clone, Copy)]
+#[derive(Component, Default, Clone, Copy)]
+#[cfg_attr(feature = "debug", derive(Reflect), reflect(Component))]
 pub struct PlayerAnimationIndices {
     pub idle_south: AnimationIndices,
     pub walking_south: AnimationIndices,
@@ -39,6 +39,7 @@ pub struct Player {
     pub animations: PlayerAnimationIndices,
     pub is_walking: bool,
     pub current_animation_index: AnimationIndices,
+    pub keyboard_last_action: Timer,
 }
 
 impl Creature for Player {
@@ -52,6 +53,25 @@ impl Creature for Player {
 }
 
 impl Player {
+    fn new() -> Player {
+        let mut player = Player {
+            speed: 10.,
+            level: 1,
+            facing_direction: FacingDirection::South,
+            life_points: 100,
+            position: Vec3::splat(0.),
+            animations: PlayerAnimationIndices::default(),
+            is_walking: false,
+            current_animation_index: AnimationIndices::default(),
+            keyboard_last_action: Timer::from_seconds(1., TimerMode::Once),
+        };
+        player.setup_animations();
+
+        player.current_animation_index = player.animations.idle_south;
+
+        player
+    }
+
     fn setup_animations(&mut self) {
         self.animations = PlayerAnimationIndices {
             idle_south: AnimationIndices { first: 0, last: 11 },
@@ -137,8 +157,7 @@ fn spawn_player(
     let atlas_texture = asset_server.load("sprites/base_model-Sheet.png");
     let atlas = TextureAtlas::from_grid(atlas_texture, Vec2::new(64., 80.), 20, 4, None, None);
     let atlas_handle = texture_atlas.add(atlas);
-    let mut player = Player::default();
-    player.setup_animations();
+    let player = Player::new();
 
     commands.spawn((
         SpriteSheetBundle {
@@ -147,7 +166,7 @@ fn spawn_player(
             transform: Transform::from_xyz(0., 0., 0.),
             ..default()
         },
-        player.animations.idle_south,
+        player.current_animation_index,
         AnimationTimer(Timer::from_seconds(0.1, TimerMode::Repeating)),
         player,
     ));
@@ -179,52 +198,43 @@ fn animate_player(
 fn move_player(
     mut player_query: Query<(&mut Player, &mut TextureAtlasSprite, &mut AnimationIndices)>,
     input: Res<Input<KeyCode>>,
+    time: Res<Time>,
 ) {
     let (mut player, mut sprites, mut indices) = player_query.single_mut();
-    if input.any_just_released(PLAYER_KEYS_DOWN) {
-        *indices = player.walk(FacingDirection::South, false);
+    player.keyboard_last_action.tick(time.delta());
+
+    if input.any_just_released(PLAYER_KEYS_DOWN)
+        || input.any_just_released(PLAYER_KEYS_LEFT)
+        || input.any_just_released(PLAYER_KEYS_RIGHT)
+        || input.any_just_released(PLAYER_KEYS_UP)
+    {
+        let f = player.facing_direction;
+        *indices = player.walk(f, false);
         sprites.index = player.current_animation_index.first;
     }
 
-    if input.any_pressed(PLAYER_KEYS_DOWN)
-        && (FacingDirection::South != player.facing_direction || !player.is_walking)
-    {
+    if player.is_walking && !player.keyboard_last_action.finished() {
+        return;
+    }
+
+    player.keyboard_last_action.reset();
+
+    if input.any_pressed(PLAYER_KEYS_DOWN) {
         *indices = player.walk(FacingDirection::South, true);
         sprites.index = player.current_animation_index.first;
     }
 
-    if input.any_just_released(PLAYER_KEYS_UP) {
-        *indices = player.walk(FacingDirection::North, false);
-        sprites.index = player.current_animation_index.first;
-    }
-
-    if input.any_pressed(PLAYER_KEYS_UP)
-        && (FacingDirection::North != player.facing_direction || !player.is_walking)
-    {
+    if input.any_pressed(PLAYER_KEYS_UP) {
         *indices = player.walk(FacingDirection::North, true);
         sprites.index = player.current_animation_index.first;
     }
 
-    if input.any_just_released(PLAYER_KEYS_RIGHT) {
-        *indices = player.walk(FacingDirection::East, false);
-        sprites.index = player.current_animation_index.first;
-    }
-
-    if input.any_pressed(PLAYER_KEYS_RIGHT)
-        && (FacingDirection::East != player.facing_direction || !player.is_walking)
-    {
+    if input.any_pressed(PLAYER_KEYS_RIGHT) {
         *indices = player.walk(FacingDirection::East, true);
         sprites.index = player.current_animation_index.first;
     }
 
-    if input.any_just_released(PLAYER_KEYS_LEFT) {
-        *indices = player.walk(FacingDirection::West, false);
-        sprites.index = player.current_animation_index.first;
-    }
-
-    if input.any_pressed(PLAYER_KEYS_LEFT)
-        && (FacingDirection::West != player.facing_direction || !player.is_walking)
-    {
+    if input.any_pressed(PLAYER_KEYS_LEFT) {
         *indices = player.walk(FacingDirection::West, true);
         sprites.index = player.current_animation_index.first;
     }
