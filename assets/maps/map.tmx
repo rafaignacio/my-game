@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<map version="1.10" tiledversion="1.10.2" orientation="isometric" renderorder="left-up" width="64" height="32" tilewidth="64" tileheight="32" infinite="0" nextlayerid="5" nextobjectid="1">
+ <tileset firstgid="1" name="iso-64x64-building" tilewidth="64" tileheight="64" tilecount="80" columns="10">
+  <image source="iso-64x64-building.png" width="640" height="512"/>
+ </tileset>
+ <layer id="4" name="floor" width="64" height="32">
+  <data encoding="base64" compression="zlib">
+   eJztz7EJAAAIBDHB/Xd2Akux+ARugKsCAACAG72Uwr9///79+0/8BwDgzwABmACR
+  </data>
+ </layer>
+ <layer id="2" name="surface" width="64" height="32">
+  <data encoding="base64" compression="zlib">
+   eJztz7ENACAMA0GYhhHYfzNEBUofpcid9L09BgAAAECOGeokfu/2//L/tYq3VNlfAABAvgNTKgDd
+  </data>
+ </layer>
+ <layer id="3" name="top1" width="64" height="32">
+  <data encoding="base64" compression="zlib">
+   eJztwQENAAAAwqD3T20ON6AAAAAAAAAAgHcDIAAAAQ==
+  </data>
+ </layer>
+</map>

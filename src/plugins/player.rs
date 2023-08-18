@@ -1,19 +1,31 @@
 use bevy::prelude::*;
 
-#[derive(Default)]
+use crate::{AnimationIndices, AnimationTimer, Creature, Position};
+
+const PLAYER_KEYS_DOWN: [KeyCode; 2] = [KeyCode::Down, KeyCode::S];
+const PLAYER_KEYS_UP: [KeyCode; 2] = [KeyCode::Up, KeyCode::W];
+const PLAYER_KEYS_RIGHT: [KeyCode; 2] = [KeyCode::Right, KeyCode::D];
+const PLAYER_KEYS_LEFT: [KeyCode; 2] = [KeyCode::Left, KeyCode::A];
+
+#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
 #[cfg_attr(feature = "debug", derive(Reflect))]
 pub enum FacingDirection {
-    Up,
+    North,
     #[default]
-    Down,
-    Left,
-    Right,
+    South,
+    East,
+    West,
 }
-
-#[derive(Resource)]
-pub struct PlayerSprites {
-    facing_up: Handle<Image>,
-    facing_down: Handle<Image>,
+#[derive(Default, Clone, Copy)]
+pub struct PlayerAnimationIndices {
+    pub idle_south: AnimationIndices,
+    pub walking_south: AnimationIndices,
+    pub idle_north: AnimationIndices,
+    pub walking_north: AnimationIndices,
+    pub idle_east: AnimationIndices,
+    pub walking_east: AnimationIndices,
+    pub idle_west: AnimationIndices,
+    pub walking_west: AnimationIndices,
 }
 
 #[derive(Component, Default)]
@@ -22,11 +34,86 @@ pub struct Player {
     pub level: u16,
     pub speed: f32,
     pub facing_direction: FacingDirection,
+    pub life_points: u32,
+    pub position: Position,
+    pub animations: PlayerAnimationIndices,
+    pub is_walking: bool,
+    pub current_animation_index: AnimationIndices,
+}
+
+impl Creature for Player {
+    fn get_current_life_points(&self) -> u32 {
+        self.life_points
+    }
+
+    fn get_current_position(&self) -> Position {
+        self.position
+    }
 }
 
 impl Player {
-    fn change_direction(&mut self, facing_direction: FacingDirection) {
+    fn setup_animations(&mut self) {
+        self.animations = PlayerAnimationIndices {
+            idle_south: AnimationIndices { first: 0, last: 11 },
+            walking_south: AnimationIndices {
+                first: 12,
+                last: 19,
+            },
+            idle_north: AnimationIndices {
+                first: 20,
+                last: 31,
+            },
+            walking_north: AnimationIndices {
+                first: 32,
+                last: 39,
+            },
+            idle_east: AnimationIndices {
+                first: 40,
+                last: 51,
+            },
+            walking_east: AnimationIndices {
+                first: 52,
+                last: 59,
+            },
+            idle_west: AnimationIndices {
+                first: 60,
+                last: 71,
+            },
+            walking_west: AnimationIndices {
+                first: 71,
+                last: 79,
+            },
+        }
+    }
+
+    fn walk(&mut self, facing_direction: FacingDirection, is_walking: bool) -> AnimationIndices {
         self.facing_direction = facing_direction;
+        self.is_walking = is_walking;
+
+        self.current_animation_index = match (facing_direction, is_walking) {
+            (FacingDirection::East, true) => {
+                self.position.x += 1.;
+                self.animations.walking_east
+            }
+            (FacingDirection::East, false) => self.animations.idle_east,
+            (FacingDirection::West, true) => {
+                self.position.x -= 1.;
+                self.animations.walking_west
+            }
+            (FacingDirection::West, false) => self.animations.idle_west,
+            (FacingDirection::North, true) => {
+                self.position.y += 1.;
+                self.animations.walking_north
+            }
+            (FacingDirection::North, false) => self.animations.idle_north,
+            (FacingDirection::South, true) => {
+                self.position.y -= 1.;
+                self.animations.walking_south
+            }
+            (FacingDirection::South, false) => self.animations.idle_south,
+        };
+
+        self.current_animation_index
     }
 }
 
@@ -34,60 +121,111 @@ pub struct PlayerPlugin;
 
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(PreStartup, load_player_sprites)
-            .add_systems(Startup, spawn_player)
+        app.add_systems(PreStartup, spawn_player)
             .add_systems(Update, move_player)
-            .add_systems(Update, update_player_sprite);
+            .add_systems(Update, animate_player);
         #[cfg(feature = "debug")]
         app.register_type::<Player>();
     }
 }
 
-fn load_player_sprites(mut commands: Commands, asset_server: Res<AssetServer>) {
-    commands.insert_resource(PlayerSprites {
-        facing_down: asset_server.load("sprites/character_maleAdventurer_idle.png"),
-        facing_up: asset_server.load("sprites/character_maleAdventurer_back.png"),
-    })
-}
+fn spawn_player(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut texture_atlas: ResMut<Assets<TextureAtlas>>,
+) {
+    let atlas_texture = asset_server.load("sprites/base_model-Sheet.png");
+    let atlas = TextureAtlas::from_grid(atlas_texture, Vec2::new(64., 80.), 20, 4, None, None);
+    let atlas_handle = texture_atlas.add(atlas);
+    let mut player = Player::default();
+    player.setup_animations();
 
-fn spawn_player(mut commands: Commands, player_sprites: Res<PlayerSprites>) {
     commands.spawn((
-        SpriteBundle {
-            texture: player_sprites.facing_down.clone(),
+        SpriteSheetBundle {
+            texture_atlas: atlas_handle,
+            sprite: TextureAtlasSprite::new(0),
+            transform: Transform::from_xyz(0., 0., 0.),
             ..default()
         },
-        Player {
-            level: 1,
-            speed: 100.0,
-            facing_direction: FacingDirection::Down,
-        },
+        player.animations.idle_south,
+        AnimationTimer(Timer::from_seconds(0.1, TimerMode::Repeating)),
+        player,
     ));
 }
 
-fn move_player(mut player_query: Query<&mut Player>, input: Res<Input<KeyCode>>) {
-    let mut player = player_query.single_mut();
-    if input.any_just_pressed([KeyCode::Down, KeyCode::S]) {
-        player.change_direction(FacingDirection::Down);
-    }
-
-    if input.any_just_pressed([KeyCode::Up, KeyCode::W]) {
-        player.change_direction(FacingDirection::Up);
-    }
+fn animate_player(
+    time: Res<Time>,
+    mut query: Query<
+        (
+            &AnimationIndices,
+            &mut AnimationTimer,
+            &mut TextureAtlasSprite,
+        ),
+        With<Player>,
+    >,
+) {
+    query.for_each_mut(|(indices, mut timer, mut sprites)| {
+        timer.tick(time.delta());
+        if timer.just_finished() {
+            sprites.index = if sprites.index == indices.last {
+                indices.first
+            } else {
+                sprites.index + 1
+            };
+        }
+    });
 }
 
-fn update_player_sprite(
-    mut player_query: Query<(&mut Handle<Image>, &Player), With<Player>>,
-    player_sprites: Res<PlayerSprites>,
+fn move_player(
+    mut player_query: Query<(&mut Player, &mut TextureAtlasSprite, &mut AnimationIndices)>,
+    input: Res<Input<KeyCode>>,
 ) {
-    let (mut texture, player) = player_query.single_mut();
-    match player.facing_direction {
-        FacingDirection::Down => {
-            *texture = player_sprites.facing_down.clone();
-        }
-        FacingDirection::Up => {
-            *texture = player_sprites.facing_up.clone();
-        }
-        FacingDirection::Left => todo!(),
-        FacingDirection::Right => todo!(),
+    let (mut player, mut sprites, mut indices) = player_query.single_mut();
+    if input.any_just_released(PLAYER_KEYS_DOWN) {
+        *indices = player.walk(FacingDirection::South, false);
+        sprites.index = player.current_animation_index.first;
+    }
+
+    if input.any_pressed(PLAYER_KEYS_DOWN)
+        && (FacingDirection::South != player.facing_direction || !player.is_walking)
+    {
+        *indices = player.walk(FacingDirection::South, true);
+        sprites.index = player.current_animation_index.first;
+    }
+
+    if input.any_just_released(PLAYER_KEYS_UP) {
+        *indices = player.walk(FacingDirection::North, false);
+        sprites.index = player.current_animation_index.first;
+    }
+
+    if input.any_pressed(PLAYER_KEYS_UP)
+        && (FacingDirection::North != player.facing_direction || !player.is_walking)
+    {
+        *indices = player.walk(FacingDirection::North, true);
+        sprites.index = player.current_animation_index.first;
+    }
+
+    if input.any_just_released(PLAYER_KEYS_RIGHT) {
+        *indices = player.walk(FacingDirection::East, false);
+        sprites.index = player.current_animation_index.first;
+    }
+
+    if input.any_pressed(PLAYER_KEYS_RIGHT)
+        && (FacingDirection::East != player.facing_direction || !player.is_walking)
+    {
+        *indices = player.walk(FacingDirection::East, true);
+        sprites.index = player.current_animation_index.first;
+    }
+
+    if input.any_just_released(PLAYER_KEYS_LEFT) {
+        *indices = player.walk(FacingDirection::West, false);
+        sprites.index = player.current_animation_index.first;
+    }
+
+    if input.any_pressed(PLAYER_KEYS_LEFT)
+        && (FacingDirection::West != player.facing_direction || !player.is_walking)
+    {
+        *indices = player.walk(FacingDirection::West, true);
+        sprites.index = player.current_animation_index.first;
     }
 }

@@ -2,6 +2,7 @@
 name = "my-game"
 version = "0.1.0"
 edition = "2021"
+exclude = ["assets/*", "screenshots/*"]
 
 [features]
 debug = []
@@ -16,6 +17,8 @@ opt-level = 3
 [dependencies]
 "bevy" = { version = "0.11.0", features = ["dynamic_linking"] }
 "bevy-inspector-egui" = { version = "0.19" }
+anyhow = "1.0.72"
+tiled = { version = "0.11.0", default-features = false }
 
 [[bin]]
 name = "client"
