@@ -63,10 +63,11 @@ impl Player {
             animations: PlayerAnimationIndices::default(),
             is_walking: false,
             current_animation_index: AnimationIndices::default(),
-            keyboard_last_action: Timer::from_seconds(1., TimerMode::Once),
+            keyboard_last_action: Timer::from_seconds(0.83, TimerMode::Once),
         };
         player.setup_animations();
 
+        player.speed = player.level as f32 / 100.;
         player.current_animation_index = player.animations.idle_south;
 
         player
@@ -109,25 +110,26 @@ impl Player {
     fn walk(&mut self, facing_direction: FacingDirection, is_walking: bool) -> AnimationIndices {
         self.facing_direction = facing_direction;
         self.is_walking = is_walking;
+        let speed = self.speed + 1.;
 
         self.current_animation_index = match (facing_direction, is_walking) {
             (FacingDirection::East, true) => {
-                self.position.x += 1.;
+                self.position.x += speed;
                 self.animations.walking_east
             }
             (FacingDirection::East, false) => self.animations.idle_east,
             (FacingDirection::West, true) => {
-                self.position.x -= 1.;
+                self.position.x -= speed;
                 self.animations.walking_west
             }
             (FacingDirection::West, false) => self.animations.idle_west,
             (FacingDirection::North, true) => {
-                self.position.y += 1.;
+                self.position.y += speed;
                 self.animations.walking_north
             }
             (FacingDirection::North, false) => self.animations.idle_north,
             (FacingDirection::South, true) => {
-                self.position.y -= 1.;
+                self.position.y -= speed;
                 self.animations.walking_south
             }
             (FacingDirection::South, false) => self.animations.idle_south,
@@ -162,7 +164,7 @@ fn spawn_player(
     commands.spawn((
         SpriteSheetBundle {
             texture_atlas: atlas_handle,
-            sprite: TextureAtlasSprite::new(0),
+            sprite: TextureAtlasSprite::new(player.current_animation_index.first),
             transform: Transform::from_xyz(0., 0., 0.),
             ..default()
         },
@@ -213,7 +215,7 @@ fn move_player(
         sprites.index = player.current_animation_index.first;
     }
 
-    if player.is_walking && !player.keyboard_last_action.finished() {
+    if player.is_walking && !player.keyboard_last_action.just_finished() {
         return;
     }
 
