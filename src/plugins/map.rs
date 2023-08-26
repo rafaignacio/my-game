@@ -7,7 +7,9 @@ pub struct MapPlugin;
 //TODO: Associate map chunk to every visible tile.
 //TODO: Update tiles when position is updated.
 
-#[derive(Component)]
+const DEFAULT_TILE_SIZE: f32 = 64.;
+
+#[derive(Component, Default)]
 pub struct MapChunk {
     position: Vec3,
     is_walkable: bool,
@@ -20,16 +22,46 @@ impl Plugin for MapPlugin {
     }
 }
 
+fn create_map_chunk(position: Vec3) -> (SpriteBundle, MapChunk) {
+    (
+        SpriteBundle {
+            sprite: Sprite {
+                color: Color::rgb(position.x, position.y, 0.3),
+                custom_size: Some(Vec2::splat(64.)),
+                ..default()
+            },
+            transform: Transform::from_translation(position),
+            ..Default::default()
+        },
+        MapChunk::default(),
+    )
+}
+
 fn setup(mut commands: Commands, window_query: Query<&Window, With<PrimaryWindow>>) {
     let window = window_query.single();
-    let map_entity = commands.spawn_empty().id();
+    let (height, width) = (window.height(), window.width());
 
-    let tiles_count = (window.height() / 64.) * (window.width() / 64.);
+    let tiles_count = (((height + DEFAULT_TILE_SIZE) / DEFAULT_TILE_SIZE)
+        * ((width + DEFAULT_TILE_SIZE) / DEFAULT_TILE_SIZE)) as u32;
+    let width_tiles_count = ((width / DEFAULT_TILE_SIZE) as u32) + 1;
 
-    [0f32..tiles_count].iter().enumerate().map(|idx| idx.0 * 2.);
-    commands.entity(map_entity).insert(MapChunk {
-        position: Vec3::splat(1.),
-        is_walkable: true,
-        texture: None,
-    });
+    println!("Tile count: {tiles_count:?}");
+
+    let (mut x, mut y) = (-(width / 2.), -(height / 2.));
+    let chunks: Vec<Entity> = (0..tiles_count)
+        .map(|i| {
+            let pos = Vec3::new(x, y, 0.);
+            x += DEFAULT_TILE_SIZE;
+
+            if i > 0 && i % width_tiles_count == 0 {
+                y += DEFAULT_TILE_SIZE;
+                x = -(width / 2.);
+            }
+            commands.spawn(create_map_chunk(pos)).id()
+        })
+        .collect();
+    commands
+        .spawn(SpatialBundle::default())
+        .insert(Name::new("Map"))
+        .push_children(&chunks);
 }
