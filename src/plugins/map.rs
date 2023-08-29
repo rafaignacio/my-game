@@ -4,7 +4,6 @@ pub struct MapPlugin;
 
 //TODO: Load tiles based on player's position
 //TODO: Map screen size and place sprites for every tile.
-//TODO: Associate map chunk to every visible tile.
 //TODO: Update tiles when position is updated.
 
 const DEFAULT_TILE_SIZE: f32 = 64.;

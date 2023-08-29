@@ -59,7 +59,7 @@ impl Player {
             level: 1,
             facing_direction: FacingDirection::South,
             life_points: 100,
-            position: Vec3::splat(0.),
+            position: Vec3::new(0., -1., 1.),
             animations: PlayerAnimationIndices::default(),
             is_walking: false,
             current_animation_index: AnimationIndices::default(),
