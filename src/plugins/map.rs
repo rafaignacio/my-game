@@ -9,7 +9,8 @@ pub struct MapPlugin;
 
 const DEFAULT_TILE_SIZE: f32 = 64.;
 
-#[derive(Component, Default)]
+#[derive(Component, Default, Reflect)]
+#[reflect(Component)]
 pub struct MapChunk {
     position: Vec3,
     is_walkable: bool,
@@ -19,6 +20,8 @@ pub struct MapChunk {
 impl Plugin for MapPlugin {
     fn build(&self, app: &mut bevy::prelude::App) {
         app.add_systems(Startup, setup);
+        #[cfg(feature = "debug")]
+        app.register_type::<MapChunk>();
     }
 }
 
@@ -33,7 +36,15 @@ fn create_map_chunk(position: Vec3) -> (SpriteBundle, MapChunk) {
             transform: Transform::from_translation(position),
             ..Default::default()
         },
-        MapChunk::default(),
+        MapChunk {
+            position: Vec3 {
+                x: f32::round(position.x / DEFAULT_TILE_SIZE),
+                y: f32::round(position.y / DEFAULT_TILE_SIZE),
+                z: 0.,
+            },
+            is_walkable: true,
+            texture: None,
+        },
     )
 }
 
@@ -44,8 +55,6 @@ fn setup(mut commands: Commands, window_query: Query<&Window, With<PrimaryWindow
     let tiles_count = (((height + DEFAULT_TILE_SIZE) / DEFAULT_TILE_SIZE)
         * ((width + DEFAULT_TILE_SIZE) / DEFAULT_TILE_SIZE)) as u32;
     let width_tiles_count = ((width / DEFAULT_TILE_SIZE) as u32) + 1;
-
-    println!("Tile count: {tiles_count:?}");
 
     let (mut x, mut y) = (-(width / 2.), -(height / 2.));
     let chunks: Vec<Entity> = (0..tiles_count)
